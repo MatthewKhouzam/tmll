@@ -354,7 +354,12 @@ def xy_anomalies_ui() -> str:
 @mcp.resource("experiment://{experiment_id}", name="experiment", description="An open trace experiment")
 def get_experiment_resource(experiment_id: str) -> str:
     """Return details for a specific experiment."""
-    return run_cli("list")
+    output = run_cli("list")
+    data = json.loads(output)
+    for name, uid in data.get("results", {}).items():
+        if uid == experiment_id:
+            return json.dumps({"name": name, "uuid": uid})
+    return json.dumps({"error": f"Experiment {experiment_id} not found"})
 
 
 # Override list_resources to dynamically expose each open experiment as a resource.
@@ -383,6 +388,20 @@ async def _dynamic_list_resources():
     return resources
 
 mcp.list_resources = _dynamic_list_resources
+
+
+@mcp.tool()
+def create_field_plots(analysis_name: str, series: dict[str, list[list[str]]], host: Optional[str] = None, port: Optional[int] = None) -> str:
+    """Generate an XML analysis to plot event fields and post it to the trace server.
+    
+    Args:
+        analysis_name: Unique name for the analysis
+        series: Dict mapping series names to lists of [event_name, field_name] pairs.
+                Example: {"cpu_prio": [["sched_switch", "prev_prio"]], "mem": [["kmem_alloc", "bytes_alloc"]]}
+    """
+    import json as _json
+    series_json = _json.dumps(series)
+    return run_cli(*_global_args(host, port), "create-field-plots", analysis_name, series_json)
 
 
 if __name__ == "__main__":
