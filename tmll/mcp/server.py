@@ -14,6 +14,7 @@ from mcp.server import MCPServer
 from mcp.server.mcpserver import Image
 from mcp.types import ToolAnnotations
 from tmll.mcp.ui.gantt import build_gantt_figure
+from tmll.mcp.vscode_links import build_open_uri, experiment_trace_path, output_ids_by_name, to_ns
 
 
 # Prevent stray print() calls from corrupting the MCP stdio JSON transport.
@@ -326,6 +327,8 @@ def plot_xy_with_anomalies(
 
         series = {}
         total = 0
+        trace_path = experiment_trace_path(experiment)
+        output_ids = output_ids_by_name(getattr(ad, "outputs", None))
         for name, df in ad.dataframes.items():
             anomaly_df = result.anomalies.get(name)
             periods = [[str(s), str(e)]
@@ -346,6 +349,12 @@ def plot_xy_with_anomalies(
                 "anomaly_x": ax,
                 "anomaly_y": ay,
                 "periods": periods,
+                "links": [
+                    link for link in (
+                        build_open_uri(trace_path, output_ids.get(name), to_ns(s), to_ns(e))
+                        for s, e in result.anomaly_periods.get(name, []))
+                    if link
+                ],
             }
 
         payload = {
@@ -354,9 +363,16 @@ def plot_xy_with_anomalies(
             "series": series,
         }
 
+        links_text = "\n".join(
+            f"- {n}: {l}" for n, s in series.items() for l in s["links"])
+        payload["links_text"] = links_text
+
         if as_image is not False:
             _last_xy_payload = payload
-            return _render_png(payload)
+            text = payload["summary"]
+            if links_text:
+                text += "\nOpen anomaly periods in VS Code:\n" + links_text
+            return [_render_png(payload), text]
 
         # Return self-contained HTML directly so MCP clients can render it.
         _last_xy_payload = payload

@@ -14,6 +14,7 @@ from tmll.ml.modules.resource_optimization.idle_resource_detection_module import
 from tmll.ml.modules.predictive_maintenance.capacity_planning_module import CapacityPlanning
 from tmll.common.models.timegraph.timegraph import TimeGraph
 from tmll.mcp.ui.gantt import build_gantt_figure
+from tmll.mcp.vscode_links import build_open_uri, experiment_trace_path, output_ids_by_name, to_ns
 
 
 def get_experiment(client, exp_uuid):
@@ -223,9 +224,15 @@ def detect_anomalies(args):
                 if "anomaly_score" in combined_anomalies.columns:
                     top_3 = combined_anomalies.sort_values(
                         "anomaly_score", ascending=False).head(3)
+                    trace_path = experiment_trace_path(experiment)
+                    ids = output_ids_by_name(getattr(ad, "outputs", None))
                     for i, (idx, row) in enumerate(top_3.iterrows(), 1):
                         print(
                             f"{i}. Time: {idx}, Source: {row['source']}, Score: {row['anomaly_score']:.4f}")
+                        ns = to_ns(idx)
+                        link = build_open_uri(trace_path, ids.get(row['source']), ns, ns)
+                        if link:
+                            print(f"   Open in VS Code: {link}")
 
 
 def detect_memory_leak(args):
